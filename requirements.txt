@@ -1,0 +1,9 @@
+pystray
+Pillow
+tkcalendar
+matplotlib
+google-generativeai
+pynput
+pyperclip
+openpyxl
+pywin32; sys_platform == "win32"
