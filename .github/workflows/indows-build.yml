@@ -1,0 +1,74 @@
+name: Build Windows Executable and Installer
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build executable with PyInstaller
+      run: pyinstaller --onefile --windowed --name="AI_Productivity_Coach" activity_logger.py
+
+    - name: Download and setup Inno Setup
+      run: |
+        curl -L -o innosetup.exe "https://jrsoftware.org/download.php/is.exe"
+        ./innosetup.exe /SILENT
+
+    - name: Create Installer Script
+      run: |
+        @"
+        [Setup]
+        AppName=AI Productivity Coach
+        AppVersion=1.0
+        DefaultDirName={autopf}\AI Productivity Coach
+        DefaultGroupName=AI Productivity Coach
+        UninstallDisplayIcon={app}\AI_Productivity_Coach.exe
+        Compression=lzma2
+        SolidCompression=yes
+        WizardStyle=modern
+        OutputBaseFilename=AI_Productivity_Coach_Setup
+        
+        [Files]
+        Source: "dist\AI_Productivity_Coach.exe"; DestDir: "{app}"; Flags: ignoreversion
+        
+        [Icons]
+        Name: "{group}\AI Productivity Coach"; Filename: "{app}\AI_Productivity_Coach.exe"
+        Name: "{autodesktop}\AI Productivity Coach"; Filename: "{app}\AI_Productivity_Coach.exe"; Tasks: desktopicon
+        
+        [Tasks]
+        Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"
+        
+        [Run]
+        Filename: "{app}\AI_Productivity_Coach.exe"; Description: "Launch application"; Flags: nowait postinstall skipifsilent
+        
+        [Registry]
+        Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AIProductivityCoach"; ValueData: """{app}\AI_Productivity_Coach.exe"""; Flags: uninsdeletevalue
+        "@ | Set-Content -Path installer_script.iss
+
+    - name: Compile the installer
+      run: |
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer_script.iss"
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: AI-Productivity-Coach-Installer
+        path: Output/AI_Productivity_Coach_Setup.exe
