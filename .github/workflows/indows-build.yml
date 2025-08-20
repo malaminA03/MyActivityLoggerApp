@@ -1,8 +1,8 @@
-name: Build Windows Executable and Installer
+name: Build Windows Executable
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -10,65 +10,27 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout repository
+    - name: 1. Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: 2. Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Install dependencies
+    - name: 3. Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
 
-    - name: Build executable with PyInstaller
-      run: pyinstaller --onefile --windowed --name="AI_Productivity_Coach" activity_logger.py
-
-    - name: Download and setup Inno Setup
+    - name: 4. Run PyInstaller
+      # --- EKHANE PORIBORTON KORA HOYECHE ---
       run: |
-        curl -L -o innosetup.exe "https://jrsoftware.org/download.php/is.exe"
-        ./innosetup.exe /SILENT
+        python -m pyinstaller --onefile --windowed --add-data "assets;assets" --icon="assets/activity_logger.ico" activity_logger.py
 
-    - name: Create Installer Script
-      run: |
-        @"
-        [Setup]
-        AppName=AI Productivity Coach
-        AppVersion=1.0
-        DefaultDirName={autopf}\AI Productivity Coach
-        DefaultGroupName=AI Productivity Coach
-        UninstallDisplayIcon={app}\AI_Productivity_Coach.exe
-        Compression=lzma2
-        SolidCompression=yes
-        WizardStyle=modern
-        OutputBaseFilename=AI_Productivity_Coach_Setup
-        
-        [Files]
-        Source: "dist\AI_Productivity_Coach.exe"; DestDir: "{app}"; Flags: ignoreversion
-        
-        [Icons]
-        Name: "{group}\AI Productivity Coach"; Filename: "{app}\AI_Productivity_Coach.exe"
-        Name: "{autodesktop}\AI Productivity Coach"; Filename: "{app}\AI_Productivity_Coach.exe"; Tasks: desktopicon
-        
-        [Tasks]
-        Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"
-        
-        [Run]
-        Filename: "{app}\AI_Productivity_Coach.exe"; Description: "Launch application"; Flags: nowait postinstall skipifsilent
-        
-        [Registry]
-        Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "AIProductivityCoach"; ValueData: """{app}\AI_Productivity_Coach.exe"""; Flags: uninsdeletevalue
-        "@ | Set-Content -Path installer_script.iss
-
-    - name: Compile the installer
-      run: |
-        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer_script.iss"
-
-    - name: Upload Artifact
+    - name: 5. Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: AI-Productivity-Coach-Installer
-        path: Output/AI_Productivity_Coach_Setup.exe
+        # --- EKHANEO PORIBORTON KORA HOYECHE ---
+        name: ActivityLogger-Windows-App
+        path: dist/activity_logger.exe
