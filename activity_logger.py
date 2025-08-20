@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, font as tkfont, filedialog
+from tkinter import ttk, messagebox, font as tkfont
 import time
 import json
 import os
@@ -9,12 +9,6 @@ import queue
 import webbrowser
 from datetime import datetime, date
 from collections import defaultdict
-
-# --- Dependency Management ---
-# To install all necessary libraries, run:
-# pip install Pillow psutil tkcalendar matplotlib pynput pyperclip google-generativeai
-# On Windows, also run: pip install wmi pywin32
-# On Linux, you might need: sudo apt-get install python3-tk scrot
 
 # --- Dependency Checks & Conditional Imports ---
 try:
@@ -42,17 +36,23 @@ try:
 except ImportError:
     CLIPBOARD_ENABLED = False
 
-# --- NEW: AI Feature Dependency Check ---
 try:
     import google.generativeai as genai
     AI_ENABLED = True
 except ImportError:
     AI_ENABLED = False
 
+# --- NEW: System Tray Imports ---
+try:
+    from pystray import MenuItem as item
+    import pystray
+    TRAY_ENABLED = True
+except ImportError:
+    TRAY_ENABLED = False
+
+
 # --- IMPORTANT: AI API KEY ---
-# --- APNAR GOOGLE AI API KEY EKHANE BOSAN ---
-# Get your key from: https://aistudio.google.com/app/apikey
-API_KEY = "AIzaSyCWnBU2dTeuYp6CsZicd0vjm4BW7IfIAVc" # <-- API Key bosiye deya hoyeche
+API_KEY = "AIzaSyCWnBU2dTeuYp6CsZicd0vjm4BW7IfIAVc"
 
 if AI_ENABLED and API_KEY:
     try:
@@ -69,18 +69,15 @@ event_queue = queue.Queue()
 last_activity_time = time.time()
 
 def on_activity(*args):
-    """Updates the global last activity timestamp."""
     global last_activity_time
     last_activity_time = time.time()
 
 def on_click(x, y, button, pressed):
-    """Event handler for mouse clicks."""
     if pressed:
         event_queue.put(('click', None))
         on_activity()
 
 def start_listeners():
-    """Starts mouse and keyboard listeners in a non-blocking way."""
     if not IDLE_DETECTION_ENABLED: return
     mouse_listener = mouse.Listener(on_click=on_click, on_move=on_activity, on_scroll=on_activity)
     keyboard_listener = keyboard.Listener(on_press=on_activity)
@@ -88,7 +85,6 @@ def start_listeners():
     keyboard_listener.start()
 
 def get_active_window_title():
-    """Gets the title of the currently active window. Now with macOS support."""
     system = platform.system()
     try:
         if system == 'Windows':
@@ -124,12 +120,9 @@ class ActivityLoggerApp:
 
         font_family = "Segoe UI" if platform.system() == "Windows" else "Helvetica"
         self.fonts = {
-            "primary": (font_family, 10),
-            "header": (font_family, 11, "bold"),
-            "card_title": (font_family, 12, "bold"),
-            "card_value": (font_family, 22, "bold"),
-            "sidebar_title": (font_family, 18, "bold"),
-            "link": (font_family, 11, "underline"),
+            "primary": (font_family, 10), "header": (font_family, 11, "bold"),
+            "card_title": (font_family, 12, "bold"), "card_value": (font_family, 22, "bold"),
+            "sidebar_title": (font_family, 18, "bold"), "link": (font_family, 11, "underline"),
         }
 
         self.setup_theme()
@@ -153,7 +146,40 @@ class ActivityLoggerApp:
         self.start_background_tasks()
         self.show_page("Dashboard")
         self.update_dashboard_live()
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        
+        # --- NEW: System Tray Logic ---
+        # Window close korle app hide hobe, bondho hobe na
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
+        # System tray icon ti alada thread e run kora hocche
+        threading.Thread(target=self.setup_tray_icon, daemon=True).start()
+
+    # --- NEW: System Tray Functions ---
+    def setup_tray_icon(self):
+        if not TRAY_ENABLED or not PIL_ENABLED: return
+        try:
+            # Apnake 'assets/tray_icon.png' file ti dite hobe
+            image = Image.open("assets/tray_icon.png")
+            menu = (item('Show Logger', self.show_window), item('Quit', self.quit_app))
+            self.icon = pystray.Icon("Activity Logger", image, "Activity Logger", menu)
+            self.icon.run()
+        except FileNotFoundError:
+            print("Tray icon not found at 'assets/tray_icon.png'. Tray feature will be disabled.")
+
+    def hide_window(self):
+        """Window close button e click korle eta call hobe."""
+        self.root.withdraw()
+
+    def show_window(self):
+        """Tray icon theke 'Show' te click korle eta call hobe."""
+        self.root.deiconify()
+
+    def quit_app(self):
+        """Tray icon theke 'Quit' e click korle eta call hobe."""
+        self.running = False
+        self.update_app_usage()
+        if self.icon:
+            self.icon.stop()
+        self.root.destroy()
 
     def create_widgets(self):
         self.sidebar_frame = tk.Frame(self.root, width=220, bg=self.theme_colors["sidebar"])
@@ -319,7 +345,7 @@ class ActivityLoggerApp:
             f.write(json.dumps(entry) + '\n')
             
         if self.pages["Logs"].winfo_exists() and self.pages["Logs"].winfo_ismapped():
-            self.pages["Logs"].on_show() # Refresh logs page live
+            self.pages["Logs"].on_show()
 
     def load_log_from_file(self):
         if not os.path.exists(self.log_file): return []
@@ -353,11 +379,6 @@ class ActivityLoggerApp:
             elif 'User is Active' in entry.get('event', ''): last_state_idle = False
             last_time = current_time
 
-    def on_close(self):
-        self.running = False
-        self.update_app_usage()
-        self.root.destroy()
-
 # --- Page Classes ---
 class BasePage(tk.Frame):
     def __init__(self, parent, controller):
@@ -369,10 +390,8 @@ class DashboardPage(BasePage):
     def __init__(self, parent, controller):
         super().__init__(parent, controller)
         self.stat_vars = {
-            "active": tk.StringVar(value="0h 0m"),
-            "idle": tk.StringVar(value="0h 0m"),
-            "clicks": tk.StringVar(value="0"),
-            "top_app": tk.StringVar(value="N/A")
+            "active": tk.StringVar(value="0h 0m"), "idle": tk.StringVar(value="0h 0m"),
+            "clicks": tk.StringVar(value="0"), "top_app": tk.StringVar(value="N/A")
         }
         
         card_frame = tk.Frame(self, bg=self.controller.theme_colors["bg"])
@@ -413,13 +432,9 @@ class DashboardPage(BasePage):
         h = int(seconds // 3600)
         m = int((seconds % 3600) // 60)
         s = int(seconds % 60)
-        if h > 0:
-            return f"{h}h {m}m"
-        elif m > 0:
-            return f"{m}m {s}s"
-        else:
-            return f"{s}s"
-
+        if h > 0: return f"{h}h {m}m"
+        elif m > 0: return f"{m}m {s}s"
+        else: return f"{s}s"
 
     def update_stats(self):
         self.stat_vars["active"].set(self.format_time(self.controller.active_time_seconds))
@@ -480,16 +495,13 @@ class DashboardPage(BasePage):
         finally:
             self.controller.root.after(0, self.ai_button.config, {"state": "normal"})
 
-# --- NEW: Redesigned LogsPage ---
 class LogsPage(BasePage):
     def __init__(self, parent, controller):
         super().__init__(parent, controller)
         
-        # PanedWindow for resizable frames
         paned_window = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashrelief=tk.RAISED, bg=self.controller.theme_colors["bg"])
         paned_window.pack(fill=tk.BOTH, expand=True)
 
-        # Left frame for app summary
         summary_frame = tk.Frame(paned_window, bg="white")
         tk.Label(summary_frame, text="Application Summary", font=self.controller.fonts["card_title"], bg="white").pack(pady=10)
         self.summary_tree = ttk.Treeview(summary_frame, columns=("App", "Time"), show="headings")
@@ -501,7 +513,6 @@ class LogsPage(BasePage):
         self.summary_tree.bind("<<TreeviewSelect>>", self.show_app_details)
         paned_window.add(summary_frame, width=400)
 
-        # Right frame for detailed timeline
         detail_frame = tk.Frame(paned_window, bg="white")
         tk.Label(detail_frame, text="Detailed Timeline", font=self.controller.fonts["card_title"], bg="white").pack(pady=10)
         self.detail_tree = ttk.Treeview(detail_frame, columns=("Time", "Event"), show="headings")
@@ -513,30 +524,24 @@ class LogsPage(BasePage):
         paned_window.add(detail_frame)
 
     def on_show(self):
-        # Clear previous data
         for i in self.summary_tree.get_children(): self.summary_tree.delete(i)
         for i in self.detail_tree.get_children(): self.detail_tree.delete(i)
 
-        # Get sorted app usage data
         app_usage = self.controller.app_usage
         sorted_apps = sorted(app_usage.items(), key=lambda item: item[1], reverse=True)
 
-        # Populate the summary tree
         for app, duration in sorted_apps:
-            if duration < 1: continue # Ignore very short usage
+            if duration < 1: continue
             app_name = (app[:40] + '...') if len(app) > 40 else app
             time_str = self.controller.pages["Dashboard"].format_time(duration)
             self.summary_tree.insert("", "end", values=(app_name, time_str), iid=app)
 
     def show_app_details(self, event):
-        # Clear previous details
         for i in self.detail_tree.get_children(): self.detail_tree.delete(i)
 
-        # Get selected app name
         selected_item = self.summary_tree.selection()
         if not selected_item: return
         
-        # The IID was set to the full app name
         selected_app_name = self.summary_tree.item(selected_item[0])['values'][0]
         full_app_name = ""
         for app in self.controller.app_usage.keys():
@@ -545,7 +550,6 @@ class LogsPage(BasePage):
                 break
         if not full_app_name: return
 
-        # Filter logs for the selected app
         today_str = date.today().isoformat()
         is_app_active = False
         
@@ -559,7 +563,6 @@ class LogsPage(BasePage):
                 self.add_detail_entry(entry)
             elif event_desc.startswith("Switched to:") and is_app_active:
                 is_app_active = False
-                # Add a "switched away" event for clarity
                 switched_away_entry = entry.copy()
                 switched_away_entry['event'] = f"--- Switched away to another app ---"
                 self.add_detail_entry(switched_away_entry, "away")
@@ -571,7 +574,6 @@ class LogsPage(BasePage):
         self.detail_tree.insert("", "end", values=(time_str, entry['event']), tags=(tag,) if tag else ())
         self.detail_tree.tag_configure("away", foreground="gray")
         self.detail_tree.yview_moveto(1)
-
 
 class SystemInfoPage(BasePage):
     def __init__(self, parent, controller):
@@ -605,7 +607,7 @@ class AboutPage(BasePage):
         container = tk.Frame(self, bg=self.controller.theme_colors["frame"], relief="solid", borderwidth=1)
         container.pack(expand=True, padx=50, pady=50)
 
-        tk.Label(container, text="Activity Logger v3.0", font=controller.fonts["card_title"], bg="white").pack(pady=(20, 5))
+        tk.Label(container, text="Activity Logger v4.0", font=controller.fonts["card_title"], bg="white").pack(pady=(20, 5))
         tk.Label(container, text="Developed By Muhammad Al-amin", font=controller.fonts["header"], bg="white").pack()
         
         self.create_link_row(container, "Email:", "mdalaminkhalifa2002@gmail.com", "mailto:mdalaminkhalifa2002@gmail.com")
@@ -623,4 +625,3 @@ if __name__ == '__main__':
     root = tk.Tk()
     app = ActivityLoggerApp(root)
     root.mainloop()
-
