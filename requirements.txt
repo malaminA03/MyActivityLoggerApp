@@ -1,5 +1,6 @@
 pyinstaller
 Pillow
+pystray
 psutil
 pynput
 pyperclip
