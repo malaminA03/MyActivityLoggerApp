@@ -27,14 +27,22 @@ jobs:
       run: |
         python -m pyinstaller --onefile --windowed --add-data "assets;assets" --icon="assets/activity_logger.ico" --distpath dist/windows activity_logger.py
 
-    - name: 5. Compile the Installer with Inno Setup
+    - name: 5. Download and Install Inno Setup
       # --- EKHANE PORIBORTON KORA HOYECHE ---
-      # Notun Inno Setup Action bebohar kora hocche
-      uses: crazy-max/ghaction-inno-setup@v3
-      with:
-        script: installer_script.iss
+      # Notun, shorashori Inno Setup download kora hocche
+      run: |
+        choco install innosetup --version=6.2.2 -y
+      shell: pwsh
 
-    - name: 6. Upload Installer as Artifact
+    - name: 6. Add Inno Setup to PATH
+      run: echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      shell: pwsh
+
+    - name: 7. Compile the Installer
+      run: iscc "installer_script.iss"
+      shell: cmd
+
+    - name: 8. Upload Installer as Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ActivityLogger-Installer
