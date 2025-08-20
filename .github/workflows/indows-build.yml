@@ -26,13 +26,16 @@ jobs:
         echo "--- PyInstaller Build Starting ---"
         python -m PyInstaller --onefile --windowed --add-data "assets;assets" --icon="assets/activity_logger.ico" --distpath dist/windows activity_logger.py
 
-    - name: 4. Set up Inno Setup
+    - name: 4. Install Inno Setup (force specific version)
       run: |
-        choco install innosetup --version=6.2.2 -y
+        choco install innosetup --version=6.2.2 -y --force
       shell: pwsh
 
     - name: 5. Add Inno Setup to PATH
-      run: echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      run: |
+        $InnoPath = "C:\Program Files (x86)\Inno Setup 6"
+        if (!(Test-Path $InnoPath)) { throw "Inno Setup path not found!" }
+        echo $InnoPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       shell: pwsh
 
     - name: 6. Compile the Installer
