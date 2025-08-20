@@ -24,8 +24,10 @@ jobs:
         pip install -r requirements.txt
 
     - name: 4. Run PyInstaller
+      # --- EKHANE PORIBORTON KORA HOYECHE ---
+      # PyInstaller-ke nirdesh deya hocche jate se .exe fileti 'dist/windows' folder e rakhe
       run: |
-        python -m pyinstaller --onefile --windowed --add-data "assets;assets" --icon="assets/activity_logger.ico" activity_logger.py
+        python -m pyinstaller --onefile --windowed --add-data "assets;assets" --icon="assets/activity_logger.ico" --distpath dist/windows activity_logger.py
 
     - name: 5. Set up Inno Setup
       uses: Minionguy/setup-inno-setup@v1.0
