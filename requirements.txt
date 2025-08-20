@@ -1,9 +1,8 @@
-pystray
+pyinstaller
 Pillow
-tkcalendar
-matplotlib
-google-generativeai
+psutil
 pynput
 pyperclip
-openpyxl
-pywin32; sys_platform == "win32"
+google-generativeai
+wmi
+pywin32
